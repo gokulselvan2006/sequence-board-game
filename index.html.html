@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sequence Board</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
+
+  :root{
+    --bg: #0b0d10;
+    --panel: #14171b;
+    --seam: #05060700;
+    --tile-back-1: #22262c;
+    --tile-back-2: #2c3138;
+    --cream: #f2ead9;
+    --amber: #f0b94a;
+    --red: #e2665b;
+    --muted: #7a828d;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin:0;
+    min-height:100%;
+    background: var(--bg);
+    color: var(--cream);
+    font-family: 'Space Mono', monospace;
+  }
+
+  body{
+    display:flex;
+    justify-content:center;
+    padding: 28px 16px 60px;
+  }
+
+  .wrap{
+    width:100%;
+    max-width: 720px;
+  }
+
+  .title{
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 46px;
+    letter-spacing: 1px;
+    line-height: 1;
+    margin: 0 0 4px;
+    color: var(--cream);
+  }
+
+  .subtitle{
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 22px;
+  }
+
+  .controls{
+    display:flex;
+    flex-wrap: wrap;
+    align-items:center;
+    gap: 14px;
+    background: var(--panel);
+    border: 1px solid #1f242b;
+    border-radius: 4px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+
+  .field{
+    display:flex;
+    align-items:center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .field input{
+    width: 58px;
+    background: #0b0d10;
+    border: 1px solid #2a2f37;
+    color: var(--cream);
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    padding: 6px 8px;
+    border-radius: 3px;
+  }
+
+  .field input:focus{ outline: 1px solid var(--amber); }
+
+  button.new-game{
+    background: transparent;
+    border: 1px solid var(--amber);
+    color: var(--amber);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  button.new-game:hover{ background: var(--amber); color: #1a1305; }
+
+  .stats{
+    display:flex;
+    gap: 22px;
+    margin-left: auto;
+    font-size: 13px;
+  }
+
+  .stat b{
+    display:block;
+    font-family:'Bebas Neue', sans-serif;
+    font-size: 22px;
+    color: var(--cream);
+    letter-spacing: 0.5px;
+  }
+  .stat span{ color: var(--muted); font-size: 11px; }
+
+  .board{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+    gap: 8px;
+    perspective: 900px;
+  }
+
+  .tile{
+    aspect-ratio: 1 / 1;
+    cursor: pointer;
+    perspective: 700px;
+  }
+  .tile.locked{ cursor: default; }
+
+  .tile-inner{
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: transform .32s cubic-bezier(.5,0,.2,1);
+    transform-style: preserve-3d;
+  }
+  .tile.flipped .tile-inner{ transform: rotateX(180deg); }
+
+  .tile-face{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius: 4px;
+    backface-visibility: hidden;
+  }
+
+  .tile-front{
+    background: linear-gradient(180deg, var(--tile-back-1), var(--tile-back-2));
+    border: 1px solid #383e47;
+  }
+  .tile-front::after{
+    content:'';
+    position:absolute;
+    left:6px; right:6px; top:50%;
+    height:1px;
+    background: rgba(0,0,0,0.35);
+  }
+
+  .tile-back{
+    background: #101214;
+    border: 1px solid #2a2f37;
+    transform: rotateX(180deg);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(18px, 4vw, 26px);
+    color: var(--amber);
+  }
+  .tile.correct .tile-back{ color: var(--cream); border-color: #4a4030; }
+  .tile.wrong .tile-back{ color: var(--red); }
+
+  .tile.found .tile-front{ opacity: 0; }
+  .tile.found{ cursor: default; }
+  .tile.found .tile-back{ color: var(--cream); }
+
+  .message{
+    margin-top: 20px;
+    padding: 16px;
+    border: 1px solid #2a2f37;
+    border-radius: 4px;
+    background: var(--panel);
+    display:none;
+    align-items:center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .message.show{ display:flex; }
+  .message .msg-text{ font-size: 14px; }
+  .message .msg-text b{ color: var(--amber); }
+
+  .hint{
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="title">Sequence Board</h1>
+  <p class="subtitle">Every tile is turned down. Find 1, then 2, then 3 — in order, from memory.</p>
+
+  <div class="controls">
+    <div class="field">
+      <label for="countInput">Tiles</label>
+      <input id="countInput" type="number" min="2" max="50" value="25">
+    </div>
+    <button class="new-game" id="newGameBtn">New board</button>
+
+    <div class="stats">
+      <div class="stat"><b id="timeStat">0:00</b><span>time</span></div>
+      <div class="stat"><b id="progressStat">0/25</b><span>found</span></div>
+      <div class="stat"><b id="missStat">0</b><span>misses</span></div>
+    </div>
+  </div>
+
+  <div class="board" id="board"></div>
+
+  <div class="message" id="message">
+    <div class="msg-text" id="messageText"></div>
+    <button class="new-game" id="playAgainBtn">Play again</button>
+  </div>
+
+  <p class="hint">Click a tile to flip it. Right number in sequence stays face up. Wrong number flips back down.</p>
+</div>
+
+<script>
+(function(){
+  const board = document.getElementById('board');
+  const countInput = document.getElementById('countInput');
+  const newGameBtn = document.getElementById('newGameBtn');
+  const playAgainBtn = document.getElementById('playAgainBtn');
+  const timeStat = document.getElementById('timeStat');
+  const progressStat = document.getElementById('progressStat');
+  const missStat = document.getElementById('missStat');
+  const message = document.getElementById('message');
+  const messageText = document.getElementById('messageText');
+
+  let N = 25;
+  let order = [];
+  let nextExpected = 1;
+  let mistakes = 0;
+  let found = 0;
+  let startTime = null;
+  let timerId = null;
+  let busy = false;
+  let won = false;
+
+  function shuffle(arr){
+    for(let i = arr.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function formatTime(ms){
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m + ':' + String(r).padStart(2, '0');
+  }
+
+  function stopTimer(){
+    if(timerId){ clearInterval(timerId); timerId = null; }
+  }
+
+  function startTimer(){
+    startTime = Date.now();
+    timerId = setInterval(() => {
+      timeStat.textContent = formatTime(Date.now() - startTime);
+    }, 250);
+  }
+
+  function buildBoard(){
+    stopTimer();
+    N = Math.min(50, Math.max(2, parseInt(countInput.value, 10) || 25));
+    countInput.value = N;
+    order = shuffle(Array.from({length: N}, (_, i) => i + 1));
+    nextExpected = 1;
+    mistakes = 0;
+    found = 0;
+    startTime = null;
+    busy = false;
+    won = false;
+
+    timeStat.textContent = '0:00';
+    progressStat.textContent = '0/' + N;
+    missStat.textContent = '0';
+    message.classList.remove('show');
+
+    board.innerHTML = '';
+    order.forEach((value) => {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.dataset.value = value;
+
+      const inner = document.createElement('div');
+      inner.className = 'tile-inner';
+
+      const front = document.createElement('div');
+      front.className = 'tile-face tile-front';
+
+      const back = document.createElement('div');
+      back.className = 'tile-face tile-back';
+      back.textContent = value;
+
+      inner.appendChild(front);
+      inner.appendChild(back);
+      tile.appendChild(inner);
+      tile.addEventListener('click', () => onTileClick(tile));
+      board.appendChild(tile);
+    });
+  }
+
+  function onTileClick(tile){
+    if(busy || won) return;
+    if(tile.classList.contains('found')) return;
+
+    if(!startTime) startTimer();
+
+    const value = parseInt(tile.dataset.value, 10);
+
+    if(value === nextExpected){
+      tile.classList.add('flipped', 'correct', 'found');
+      nextExpected++;
+      found++;
+      progressStat.textContent = found + '/' + N;
+
+      if(found === N){
+        won = true;
+        stopTimer();
+        const finalTime = formatTime(Date.now() - startTime);
+        messageText.innerHTML = 'Solved in <b>' + finalTime + '</b> with <b>' + mistakes + '</b> mistake' + (mistakes === 1 ? '' : 's') + '.';
+        message.classList.add('show');
+      }
+    } else {
+      busy = true;
+      mistakes++;
+      missStat.textContent = mistakes;
+      tile.classList.add('flipped', 'wrong');
+      setTimeout(() => {
+        tile.classList.remove('flipped', 'wrong');
+        busy = false;
+      }, 550);
+    }
+  }
+
+  newGameBtn.addEventListener('click', buildBoard);
+  playAgainBtn.addEventListener('click', buildBoard);
+  countInput.addEventListener('change', buildBoard);
+
+  buildBoard();
+})();
+</script>
+</body>
+</html>
